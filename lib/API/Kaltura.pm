@@ -8,7 +8,7 @@ use Data::Dumper;
 
 BEGIN {
     our ( $VERSION, %SESSION_TYPES, %MEDIA_TYPES, $CHUNK_SIZE );
-    $VERSION       = '0.02EXPERIMENTAL';
+    $VERSION       = '0.03';
     %SESSION_TYPES = (
         user  => 0,
         admin => 2
