@@ -385,7 +385,7 @@ be used for troubleshooting API access.
 
 =head2 $kt->upload_file($hashref)
 
-B<This method is considered experimental.>
+B<This method is considered experimental.  It probably will change.>
 
 This method wraps up all the calls required to upload a file into the
 Kaltura instance.  Returns an XML::Twig object.  The following are required.
@@ -394,9 +394,14 @@ Kaltura instance.  Returns an XML::Twig object.  The following are required.
 
 =item file
 
-A file to be uploaded
+A file to be uploaded.  This should be something media-ish, but Kaltura
+will ingest almost anything.  
 
 =back
+
+=head2 $kt->end_session()
+
+Kills the existing session being used by the API::Kaltura object.  
 
 =head1 DEPENDENCIES
 
