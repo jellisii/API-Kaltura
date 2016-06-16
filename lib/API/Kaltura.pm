@@ -307,7 +307,7 @@ API::Kaltura - Kaltura API utility.
     });
     
     # Kill the existing session.
-    $kt->endSession();
+    $kt->end_session();
 
 =head1 DESCRIPTION
 
