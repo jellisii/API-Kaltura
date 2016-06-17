@@ -91,7 +91,7 @@ sub start_session {
             type    => $self->{sessionType}
         }
     );
-    my $result = __get_result_from_return($ua);
+    my $result = $self->__get_result_from_return($ua);
     if ($result) {
         $self->{current_ks} = $result->text();
     }
