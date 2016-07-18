@@ -1,3 +1,67 @@
+=head1 NAME
+
+API::Kaltura - Kaltura API utility.
+
+=head1 VERSION
+
+0.05
+
+=head1 SYNOPSIS
+
+    use API::Kaltura;
+    my $kt = API::Kaltura->new({
+        secret => 'my secret from Kaltura',
+        kalturaUrl => 'https://my.kaltura.url',
+        apiVersion => 3,
+        sessionType => 'admin', # admin or user only
+        partnerId => '1234567890'
+    });
+    $kt->start_session();
+    
+    # getResult will be the most commonly used function.
+    # get a user's KMS data.
+    $user_twig = $kt->get_result({
+        service => 'user',
+        action => 'get',
+        userId => 'someUserId'
+    });
+    
+    # To get the raw L<LWP::UserAgent|LWP::UserAgent> object from Kaltura, you 
+    # can use run_service.  This can be useful for troubleshooting problems.
+    my $ua = $kt->run_service({
+        service => 'user',
+        action => 'get',
+        userId => 'someUserId'
+    });
+    
+    # Upload a file.  This is considered experimental as error catching
+    # is not that great currently.
+    my $upload_result = $kt->upload_file({
+        file => "/path/to/a/file",
+        type => "audio", # see Kaltura API info for valid types.
+        categoriesIds => '1234567890',
+        name => 'Name for this media',
+        description => 'Description for this media',
+        tags => 'comma, separated, tags',
+        adminTags => 'comma, separated, tags'
+    });
+    
+    # Kill the existing session.
+    $kt->end_session();
+
+=head1 DESCRIPTION
+
+Easy low-level access to Kaltura API functions.
+
+=head1 USAGE
+
+Documentation for services and actions can be found on Kaltura's website.
+The simplest usage of this module is as documented in the synopsis.
+
+=head1 SUBROUTINES/METHODS
+
+=cut
+
 package API::Kaltura;
 use strict;
 use warnings;
@@ -26,6 +90,38 @@ BEGIN {
     # 10MB is a nice number...
     $CHUNK_SIZE = '10485760';
 }
+
+=head2 $kt = API::Kaltura->new($hashref)
+
+Bootstraps a new instance of API::Kaltura.  The following are all
+required.
+
+=over 4
+
+=item secret
+
+A secret.  This is provided by your KMC/Kaltura.    
+
+=item kalturaUrl
+
+The URL of your Kaltura instance.
+
+=item apiVersion
+
+Version of the API to use.  As of this writing, only 3 is supported.
+
+=item sessionType
+
+Kaltura session type.  As of this writing, admin or user are the only
+supported session types.
+
+=item partnerId
+
+Partner ID.  This is provided by your KMC/Kaltura.
+
+=back
+
+=cut
 
 sub new {
     my ( $class, $params ) = @_;
@@ -60,6 +156,80 @@ sub new {
     return $self;
 }
 
+
+=head2 $kt->start_session()
+
+Starts a Kaltura Session.  Returns true if successful.
+
+The following are optional :
+
+=over 4
+
+=item expiry
+
+The number of seconds that the session is valid for.  
+
+=cut
+
+sub start_session {
+    my ($self, $params) = @_;
+    my $session_params = {
+        service => 'session',
+        action  => 'start',
+        type    => $self->{sessionType},
+    };
+    
+    if ($params->{expiry} ) {
+        $session_params->{expiry} = $params->{expiry};
+    }
+    my $ua   = $self->run_service($session_params);
+    my $result = $self->__get_result_from_return($ua);
+    if ($result) {
+        $self->{current_ks} = $result->text();
+    }
+    else {
+        carp('No session supplied in result!');
+        return 0;
+    }
+    return 1;
+}
+
+=head2 $kt->get_result($hashref)
+
+Gets the results of a specified request.  Returns an XML::Twig object. The
+following are required:
+
+=over 4
+
+=item service
+
+The service to be used.
+
+=item action
+
+The action on the service.
+
+=back
+
+Most actions have other requirements as well.  See the Kaltura API
+documentation for more details
+
+=cut
+
+sub get_result {
+    my ( $self, $params ) = @_;
+    my $result = $self->run_service($params);
+    return $self->__get_result_from_return($result);
+}
+
+=head2 $kt->run_service($hashref)
+
+This method has the same requirements as get_result.  The only difference
+is that it returns a LWP object.  This method is envisioned to primarily
+be used for troubleshooting API access.
+
+=cut
+
 sub run_service {
     my ( $self, $params ) = @_;
 
@@ -82,25 +252,11 @@ sub run_service {
     );
 }
 
-sub start_session {
-    my $self = shift;
-    my $ua   = $self->run_service(
-        {
-            service => 'session',
-            action  => 'start',
-            type    => $self->{sessionType}
-        }
-    );
-    my $result = $self->__get_result_from_return($ua);
-    if ($result) {
-        $self->{current_ks} = $result->text();
-    }
-    else {
-        carp('No session supplied in result!');
-        return 0;
-    }
-    return 1;
-}
+=head2 $kt->end_session()
+
+Kills the existing session being used by the API::Kaltura object.  
+
+=cut
 
 sub end_session {
 
@@ -117,11 +273,23 @@ sub end_session {
     return 1;
 }
 
-sub get_result {
-    my ( $self, $params ) = @_;
-    my $result = $self->run_service($params);
-    return $self->__get_result_from_return($result);
-}
+=head2 $kt->upload_file($hashref)
+
+B<This method is considered experimental.  It probably will change.>
+
+This method wraps up all the calls required to upload a file into the
+Kaltura instance.  Returns an XML::Twig object.  The following are required.
+
+=over 4
+
+=item file
+
+A file to be uploaded.  This should be something media-ish, but Kaltura
+will ingest almost anything.  
+
+=back
+
+=cut
 
 # TODO:  Error catching.
 sub upload_file {
@@ -255,153 +423,6 @@ sub __get_result_from_return {
 1;
 
 __END__
-
-#################### main pod documentation begin ###################
-
-=head1 NAME
-
-API::Kaltura - Kaltura API utility.
-
-=head1 VERSION
-
-0.03
-
-=head1 SYNOPSIS
-
-    use API::Kaltura;
-    my $kt = API::Kaltura->new({
-        secret => 'my secret from Kaltura',
-        kalturaUrl => 'https://my.kaltura.url',
-        apiVersion => 3,
-        sessionType => 'admin', # admin or user only
-        partnerId => '1234567890'
-    });
-    $kt->start_session();
-    
-    # getResult will be the most commonly used function.
-    # get a user's KMS data.
-    $user_twig = $kt->get_result({
-        service => 'user',
-        action => 'get',
-        userId => 'someUserId'
-    });
-    
-    # To get the raw L<LWP::UserAgent|LWP::UserAgent> object from Kaltura, you 
-    # can use run_service.  This can be useful for troubleshooting problems.
-    my $ua = $kt->run_service({
-        service => 'user',
-        action => 'get',
-        userId => 'someUserId'
-    });
-    
-    # Upload a file.  This is considered experimental as error catching
-    # is not that great currently.
-    my $upload_result = $kt->upload_file({
-        file => "/path/to/a/file",
-        type => "audio", # see Kaltura API info for valid types.
-        categoriesIds => '1234567890',
-        name => 'Name for this media',
-        description => 'Description for this media',
-        tags => 'comma, separated, tags',
-        adminTags => 'comma, separated, tags'
-    });
-    
-    # Kill the existing session.
-    $kt->end_session();
-
-=head1 DESCRIPTION
-
-Easy low-level access to Kaltura API functions.
-
-=head1 USAGE
-
-Documentation for services and actions can be found on Kaltura's website.
-The simplest usage of this module is as documented in the synopsis.
-
-=head1 SUBROUTINES/METHODS
-
-=head2 $kt = API::Kaltura->new($hashref)
-
-Bootstraps a new instance of API::Kaltura.  The following are all
-required.
-
-=over 4
-
-=item secret
-
-A secret.  This is provided by your KMC/Kaltura.    
-
-=item kalturaUrl
-
-The URL of your Kaltura instance.
-
-=item apiVersion
-
-Version of the API to use.  As of this writing, only 3 is supported.
-
-=item sessionType
-
-Kaltura session type.  As of this writing, admin or user are the only
-supported session types.
-
-=item partnerId
-
-Partner ID.  This is provided by your KMC/Kaltura.
-
-=back
-
-=head2 $kt->start_session()
-
-Starts a Kaltura Session.  Returns true if successful.
-
-Currently, session lengths are defined by the server.  There is a TODO to
-be able to pass a session length with this method.
-
-=head2 $kt->get_result($hashref)
-
-Gets the results of a specified request.  Returns an XML::Twig object. The
-following are required:
-
-=over 4
-
-=item service
-
-The service to be used.
-
-=item action
-
-The action on the service.
-
-=back
-
-Most actions have other requirements as well.  See the Kaltura API
-documentation for more details
-
-=head2 $kt->run_service($hashref)
-
-This method has the same requirements as get_result.  The only difference
-is that it returns a LWP object.  This method is envisioned to primarily
-be used for troubleshooting API access.
-
-=head2 $kt->upload_file($hashref)
-
-B<This method is considered experimental.  It probably will change.>
-
-This method wraps up all the calls required to upload a file into the
-Kaltura instance.  Returns an XML::Twig object.  The following are required.
-
-=over 4
-
-=item file
-
-A file to be uploaded.  This should be something media-ish, but Kaltura
-will ingest almost anything.  
-
-=back
-
-=head2 $kt->end_session()
-
-Kills the existing session being used by the API::Kaltura object.  
 
 =head1 DEPENDENCIES
 
