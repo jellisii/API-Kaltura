@@ -4,7 +4,7 @@ API::Kaltura - Kaltura API utility.
 
 =head1 VERSION
 
-0.05
+0.06
 
 =head1 SYNOPSIS
 
@@ -72,7 +72,7 @@ use Data::Dumper;
 
 BEGIN {
     our ( $VERSION, %SESSION_TYPES, %MEDIA_TYPES, $CHUNK_SIZE );
-    $VERSION       = '0.03';
+    $VERSION       = '0.06';
     %SESSION_TYPES = (
         user  => 0,
         admin => 2
@@ -167,7 +167,9 @@ The following are optional :
 
 =item expiry
 
-The number of seconds that the session is valid for.  
+The number of seconds that the session is valid for.
+
+=back
 
 =cut
 
@@ -218,7 +220,16 @@ documentation for more details
 
 sub get_result {
     my ( $self, $params ) = @_;
-    my $result = $self->run_service($params);
+#    my $result = $self->run_service($params);
+    my $result;
+    my $attempts = 0;
+    while ($attempts < 3) {
+        $result = $self->run_service($params);
+        if ($result ne 'RETRY') {
+            last;
+        }
+        $attempts++;
+    }
     return $self->__get_result_from_return($result);
 }
 
@@ -408,7 +419,17 @@ sub __get_result_from_return {
 
         # check to see if the API barfed.
         if ( my $error = $result->first_child('error') ) {
-            croak( $error->sprint() );
+            if ($result->first_child('code')->text() eq 'INVALID_KS') {
+                # TODO:  Better return.
+                return 'RETRY';
+            } else {
+                # croak( $error->sprint() );
+                # Error objects are predictable.
+                foreach my $item ($error->first_child('args')->children('item')) {
+                    carp($item);
+                }
+                croak( $error->sprint() );
+            }
         }
         else {
             return $result;
